@@ -235,6 +235,9 @@
 </div>
 
 <script>
+    // ==========================================
+    // 1. 변수 선언부 (이 부분을 맨 위로 올려 오류를 완벽하게 차단했습니다!)
+    // ==========================================
     let words = ['주거가치', '식품구성', '옷차림', '가족관계', '소비생활'];
     let targetWords = [];
     let gridSize = 8;
@@ -247,7 +250,11 @@
 
     let timerInterval = null;
     let secondsElapsed = 0;
+    let currentPath = []; // 학생 링크 오류의 핵심 원인이었던 변수를 위로 옮겼습니다!
 
+    // ==========================================
+    // 2. DOM 요소 연결
+    // ==========================================
     const p1 = document.getElementById('page1');
     const p2 = document.getElementById('page2');
     const board = document.getElementById('board');
@@ -255,7 +262,7 @@
     const timerText = document.getElementById('timerText');
 
     // ==========================================
-    // 학생용 링크(URL 파라미터) 확인 로직
+    // 3. 학생용 링크(URL 파라미터) 확인 로직
     // ==========================================
     const urlParams = new URLSearchParams(window.location.search);
     const isStudentMode = urlParams.has('words') && urlParams.has('size');
@@ -276,7 +283,7 @@
         
         p1.style.display = 'none';
         p2.style.display = 'flex';
-        initPuzzle();
+        initPuzzle(); // 이제 오류 없이 정상 실행됩니다!
     } else {
         // 주소창에 데이터가 없다면 처음 접속한 선생님!
         renderTags();
@@ -396,8 +403,6 @@
     }
 
     // --- 클릭 및 자동 취소 로직 ---
-    let currentPath = [];
-
     board.addEventListener('click', (e) => {
         if(!timerInterval) return; 
         const cell = e.target.closest('.cell');
