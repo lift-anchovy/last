@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>낱말찾기 퍼즐</title>
+    <!-- 이미지 저장을 위한 라이브러리 -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- QR 코드 생성을 위한 라이브러리 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #FDF6E3;
+            --panel-bg: #FFF3E0;
+            --text-main: #4A3A31;
+            --text-sub: #8D7B68;
+            --btn-main: #FFB385;
+            --btn-hover: #FA9A63;
+            --border-color: #F0E5D1;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            user-select: none;
+        }
+        .app-container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        /* --- 1페이지 (단어 입력) --- */
+        #page1 {
+            background-color: var(--panel-bg);
+            padding: 40px;
+            border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(210, 180, 140, 0.3);
+            text-align: center;
+        }
+        h1 { margin-bottom: 10px; font-size: 28px; font-weight: 800; }
+        
+        #puzzleTitle {
+            outline: none;
+            border-bottom: 2px dashed transparent;
+            display: inline-block;
+            transition: border-bottom 0.2s;
+        }
+        #puzzleTitle[contenteditable="true"]:focus, 
+        #puzzleTitle[contenteditable="true"]:hover { 
+            border-bottom: 2px dashed var(--btn-main); 
+        }
+        
+        .subtitle { color: var(--text-sub); margin-bottom: 30px; font-size: 15px; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        select, input[type="text"] {
+            padding: 15px; border: 2px solid var(--border-color);
+            border-radius: 12px; font-size: 16px; outline: none; transition: 0.2s;
+        }
+        select { width: 30%; color: var(--text-main); cursor: pointer; }
+        input[type="text"] { flex-grow: 1; }
+        input[type="text"]:focus, select:focus { border-color: #E2C792; }
+        
+        .add-btn { background-color: var(--btn-main); color: white; border: none; border-radius: 12px; width: 50px; font-size: 24px; cursor: pointer; }
+        .tag-container { display: flex; flex-wrap: wrap; gap: 10px; min-height: 80px; margin-bottom: 20px; justify-content: center; }
+        .tag { background-color: white; color: #D38C61; padding: 8px 16px; border-radius: 20px; font-size: 14px; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .tag span { cursor: pointer; font-weight: bold; }
+        
+        .footer { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+        .word-count { color: var(--text-sub); font-size: 14px; font-weight: 500; }
+        .start-btn { background-color: var(--btn-main); color: white; padding: 12px 24px; border: none; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .start-btn:hover { background-color: var(--btn-hover); }
+
+        /* --- 2페이지 (퍼즐 화면) --- */
+        #page2 { display: none; flex-direction: column; align-items: center; width: 100%; }
+        .timer-badge { background-color: #EEEEEE; color: #666; padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: bold; margin-bottom: 5px; display: inline-flex; align-items: center; gap: 6px; }
+        .guide-text { font-size: 13px; color: var(--text-sub); margin-bottom: 20px; }
+
+        .board-wrapper { position: relative; background-color: white; padding: 20px; border-radius: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.05); margin-bottom: 24px; }
+        #board { display: grid; gap: 5px; transition: filter 0.3s; }
+        #board.blurred { filter: blur(6px); pointer-events: none; }
+        
+        .cell {
+            width: 40px; height: 40px; display: flex; justify-content: center; align-items: center;
+            font-size: 20px; font-weight: bold; border-radius: 8px; cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s, background-color 0.15s;
+            position: relative; z-index: 2;
+        }
+        
+        .cell.temp-highlight {
+            transform: scale(0.85);
+            box-shadow: inset 0 0 0 3px #888;
+        }
+        .cell.temp-highlight:not(.found-highlight) {
+            background-color: #e0e0e0;
+        }
+        .cell.found-highlight { color: #333; }
+        
+        #startOverlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 10; border-radius: 20px;
+        }
+        #startOverlay button { background-color: var(--btn-main); color: white; border: none; padding: 15px 40px; font-size: 18px; font-weight: bold; border-radius: 30px; cursor: pointer; box-shadow: 0 4px 15px rgba(255, 179, 133, 0.4); transition: transform 0.2s; }
+        #startOverlay button:hover { transform: scale(1.05); }
+
+        .words-to-find { width: 100%; text-align: left; margin-bottom: 30px; }
+        .words-to-find h3 { font-size: 14px; color: var(--text-sub); margin-bottom: 12px; display: flex; justify-content: space-between; }
+        .word-list { display: flex; flex-wrap: wrap; gap: 10px; }
+        .word-item { padding: 8px 16px; border-radius: 20px; background-color: #eee; color: #888; font-size: 14px; font-weight: 500; transition: 0.3s; }
+        .word-item.found { color: #333; text-decoration: line-through; opacity: 0.8; }
+
+        .bottom-actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; width: 100%; border-top: 1px solid #ddd; padding-top: 20px; }
+        .action-btn { background: none; border: 1px solid #ddd; padding: 10px 15px; border-radius: 20px; color: #666; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; background-color: white; }
+        .action-btn:hover { background-color: #f5f5f5; }
+        
+        /* 선생님 전용 버튼 강조 */
+        #btnShare { border-color: var(--btn-main); color: #D38C61; font-weight: bold; }
+        #btnShare:hover { background-color: #FFF3E0; }
+
+        /* 하단 서명 스타일 */
+        .creator-signature {
+            margin-top: 25px;
+            color: #D38C61;
+            font-size: 13px;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: -0.5px;
+            width: 100%;
+        }
+
+        /* --- 모달(QR 팝업) 스타일 --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 24px;
+            text-align: center;
+            width: 90%;
+            max-width: 350px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .modal-content h2 { margin-top: 0; color: var(--text-main); font-size: 20px; margin-bottom: 10px; }
+        .modal-content p { color: var(--text-sub); font-size: 14px; margin-bottom: 20px; }
+        #qrcodeDisplay { margin: 0 auto 20px auto; padding: 15px; background: white; border-radius: 12px; border: 2px solid var(--border-color); display: inline-block; }
+        #shareLinkInput { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; box-sizing: border-box; font-size: 13px; color: #666; background-color: #f9f9f9; }
+        .modal-btns { display: flex; gap: 10px; justify-content: center; }
+        .modal-btns button { padding: 10px 15px; border-radius: 12px; border: none; font-size: 14px; cursor: pointer; font-weight: bold; flex: 1; }
+        #btnCopyLink { background-color: var(--btn-main); color: white; }
+        #btnCloseModal { background-color: #eee; color: #666; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- 1페이지 (선생님 화면) -->
+    <div id="page1">
+        <h1>낱말찾기</h1>
+        <p class="subtitle">낱말을 입력하고 퍼즐을 만들어보세요!</p>
+        <div class="input-group">
+            <select id="gridSize">
+                <option value="6">6x6</option>
+                <option value="8" selected>8x8</option>
+                <option value="10">10x10</option>
+                <option value="12">12x12</option>
+            </select>
+            <input type="text" id="wordInput" placeholder="낱말 입력 (예: 식품구성)" autocomplete="off">
+            <button class="add-btn" id="addBtn">+</button>
+        </div>
+        <div class="tag-container" id="tagContainer"></div>
+        <div class="footer">
+            <div class="word-count">입력된 낱말: <span id="currentCount">0</span>개 (최대 20개)</div>
+            <button class="start-btn" id="generateBtn">▷ 퍼즐 만들기</button>
+        </div>
+        
+        <div class="creator-signature">기술가정 문선쌤이 직접 만든 사이트♥</div>
+    </div>
+
+    <!-- 2페이지 (선생님 & 학생 겸용 화면) -->
+    <div id="page2">
+        <h1 contenteditable="true" id="puzzleTitle">낱말찾기</h1>
+        <div class="timer-badge">⏱ <span id="timerText">00:00</span></div>
+        <p class="guide-text">💡 단어의 글자를 하나씩 순서대로 클릭하세요.</p>
+        
+        <div class="board-wrapper" id="captureArea">
+            <div id="startOverlay"><button id="startTimerBtn">시작하기</button></div>
+            <div id="board" class="blurred"></div>
+        </div>
+
+        <div class="words-to-find">
+            <h3>찾아야 할 낱말</h3>
+            <div class="word-list" id="wordListToFind"></div>
+        </div>
+
+        <div class="bottom-actions">
+            <!-- 학생들에게는 공유 버튼과 처음으로 버튼이 보이지 않습니다 -->
+            <button class="action-btn" id="btnHome">← 처음으로</button>
+            <button class="action-btn" id="btnRestart">↻ 섞어서 다시하기</button>
+            <button class="action-btn" id="btnSave">↓ 이미지 저장</button>
+            <button class="action-btn" id="btnShare">📱 학생용 QR 공유</button>
+        </div>
+
+        <div class="creator-signature" style="margin-top: 30px;">기술가정 문선쌤이 직접 만든 사이트♥</div>
+    </div>
+</div>
+
+<!-- QR 코드 팝업 (모달) -->
+<div id="qrModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+        <h2>스마트폰으로 스캔하세요!</h2>
+        <p>아이들이 이 QR코드를 찍으면<br>바로 낱말찾기 퍼즐이 시작됩니다.</p>
+        
+        <div id="qrcodeDisplay"></div>
+        
+        <input type="text" id="shareLinkInput" readonly>
+        
+        <div class="modal-btns">
+            <button id="btnCopyLink">링크 복사</button>
+            <button id="btnCloseModal">닫기</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let words = ['주거가치', '식품구성', '옷차림', '가족관계', '소비생활'];
+    let targetWords = [];
+    let gridSize = 8;
+    let gridData = [];
+    let actualPlaced = []; 
+    let foundWordsCount = 0;
+    
+    const colors = ['#fce2ab', '#c8e6c9', '#ffcdd2', '#bbdefb', '#e1bee7', '#b2dfdb', '#ffcc80', '#f8bbd0', '#dcedc8'];
+    let currentColorIndex = 0;
+
+    let timerInterval = null;
+    let secondsElapsed = 0;
+
+    const p1 = document.getElementById('page1');
+    const p2 = document.getElementById('page2');
+    const board = document.getElementById('board');
+    const overlay = document.getElementById('startOverlay');
+    const timerText = document.getElementById('timerText');
+
+    // ==========================================
+    // 학생용 링크(URL 파라미터) 확인 로직
+    // ==========================================
+    const urlParams = new URLSearchParams(window.location.search);
+    const isStudentMode = urlParams.has('words') && urlParams.has('size');
+
+    if (isStudentMode) {
+        // 주소창에 데이터가 있다면 선생님이 공유한 링크로 접속한 학생!
+        targetWords = urlParams.get('words').split(',');
+        gridSize = parseInt(urlParams.get('size'));
+        
+        if(urlParams.has('title')) {
+            document.getElementById('puzzleTitle').innerText = urlParams.get('title');
+        }
+
+        // 학생용 UI 설정 (제목 수정 불가, 불필요한 버튼 숨김)
+        document.getElementById('puzzleTitle').contentEditable = "false";
+        document.getElementById('btnHome').style.display = 'none';
+        document.getElementById('btnShare').style.display = 'none';
+        
+        p1.style.display = 'none';
+        p2.style.display = 'flex';
+        initPuzzle();
+    } else {
+        // 주소창에 데이터가 없다면 처음 접속한 선생님!
+        renderTags();
+    }
+    // ==========================================
+
+    function renderTags() {
+        const c = document.getElementById('tagContainer');
+        c.innerHTML = '';
+        words.forEach((w, i) => {
+            const tag = document.createElement('div');
+            tag.className = 'tag';
+            tag.innerHTML = `${w} <span onclick="removeWord(${i})">x</span>`;
+            c.appendChild(tag);
+        });
+        document.getElementById('currentCount').innerText = words.length;
+    }
+    
+    function removeWord(i) { words.splice(i, 1); renderTags(); }
+    
+    document.getElementById('addBtn').addEventListener('click', () => {
+        const inp = document.getElementById('wordInput');
+        const w = inp.value.replace(/\s+/g, ''); // 띄어쓰기 무시
+        
+        if(w.length >= 2 && !words.includes(w) && words.length < 20) {
+            words.push(w); inp.value = ''; renderTags();
+        } else if (words.length >= 20) {
+            alert('단어는 최대 20개까지만 입력할 수 있습니다.');
+        } else if (words.includes(w)) {
+            alert('이미 입력된 단어입니다.');
+        } else if (w.length < 2) {
+            alert('2글자 이상 입력해주세요.');
+        }
+    });
+    
+    document.getElementById('wordInput').addEventListener('keypress', e => {
+        if(e.key === 'Enter') document.getElementById('addBtn').click();
+    });
+
+    document.getElementById('generateBtn').addEventListener('click', () => {
+        if(words.length === 0) return alert('최소 1개 이상의 단어를 입력해주세요.');
+        gridSize = parseInt(document.getElementById('gridSize').value);
+        targetWords = [...words];
+        initPuzzle();
+        p1.style.display = 'none';
+        p2.style.display = 'flex';
+    });
+
+    function initPuzzle() {
+        gridData = Array(gridSize).fill(null).map(() => Array(gridSize).fill(''));
+        board.style.gridTemplateColumns = `repeat(${gridSize}, 40px)`;
+        board.style.gridTemplateRows = `repeat(${gridSize}, 40px)`;
+        board.innerHTML = '';
+        actualPlaced = [];
+        
+        const dirs = [[0,1], [1,0], [1,1], [-1,1], [0,-1], [-1,0], [-1,-1], [1,-1]];
+        
+        targetWords.forEach(word => {
+            let placed = false;
+            let attempts = 0;
+            while(!placed && attempts < 200) {
+                let d = dirs[Math.floor(Math.random() * dirs.length)];
+                let r = Math.floor(Math.random() * gridSize);
+                let c = Math.floor(Math.random() * gridSize);
+                if(canPlace(word, r, c, d)) {
+                    let coords = placeWord(word, r, c, d);
+                    actualPlaced.push({word: word, coords: coords, found: false});
+                    placed = true;
+                }
+                attempts++;
+            }
+        });
+
+        const chars = "가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허고노도로모보소오조초코토포호구누두루무부수우주추쿠투푸후기니디리미비시이지치키티피히";
+        for(let r=0; r<gridSize; r++){
+            for(let c=0; c<gridSize; c++){
+                if(gridData[r][c] === '') gridData[r][c] = chars[Math.floor(Math.random() * chars.length)];
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.r = r; cell.dataset.c = c;
+                cell.innerText = gridData[r][c];
+                board.appendChild(cell);
+            }
+        }
+        
+        const wl = document.getElementById('wordListToFind');
+        wl.innerHTML = '';
+        actualPlaced.forEach(item => {
+            const span = document.createElement('div');
+            span.className = 'word-item';
+            span.innerText = item.word;
+            span.dataset.word = item.word;
+            wl.appendChild(span);
+        });
+        
+        resetGameStates();
+    }
+
+    function canPlace(word, r, c, d) {
+        for(let i=0; i<word.length; i++){
+            let nr = r + d[0]*i, nc = c + d[1]*i;
+            if(nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize) return false;
+            if(gridData[nr][nc] !== '' && gridData[nr][nc] !== word[i]) return false;
+        }
+        return true;
+    }
+
+    function placeWord(word, r, c, d) {
+        let coords = [];
+        for(let i=0; i<word.length; i++){
+            let nr = r + d[0]*i;
+            let nc = c + d[1]*i;
+            gridData[nr][nc] = word[i];
+            coords.push(`${nr}-${nc}`);
+        }
+        return coords;
+    }
+
+    // --- 클릭 및 자동 취소 로직 ---
+    let currentPath = [];
+
+    board.addEventListener('click', (e) => {
+        if(!timerInterval) return; 
+        const cell = e.target.closest('.cell');
+        if(!cell) return;
+
+        if (currentPath.includes(cell)) {
+            if (currentPath[currentPath.length - 1] === cell) {
+                cell.classList.remove('temp-highlight');
+                currentPath.pop();
+            } else {
+                clearTempSelection();
+            }
+            return;
+        }
+
+        currentPath.push(cell);
+        cell.classList.add('temp-highlight');
+
+        checkSelection();
+    });
+
+    function checkSelection() {
+        if (currentPath.length === 0) return;
+
+        const currentStr = currentPath.map(c => c.innerText).join('');
+        const selectedCoords = currentPath.map(c => `${c.dataset.r}-${c.dataset.c}`);
+        const selCoordsStr = selectedCoords.join('|');
+        
+        let isValidStringPrefix = false;
+        let matchedItem = null;
+
+        for (let item of actualPlaced) {
+            if (item.found) continue;
+            
+            let w = item.word;
+            let wRev = w.split('').reverse().join('');
+            const coordsStr = item.coords.join('|');
+            const revCoordsStr = [...item.coords].reverse().join('|');
+
+            if (selCoordsStr === coordsStr || selCoordsStr === revCoordsStr) {
+                matchedItem = item;
+                isValidStringPrefix = true;
+                break;
+            }
+            
+            if (w.startsWith(currentStr) || wRev.startsWith(currentStr)) {
+                isValidStringPrefix = true;
+            }
+        }
+
+        if (matchedItem) {
+            matchedItem.found = true;
+            let color = colors[currentColorIndex % colors.length];
+
+            currentPath.forEach(c => {
+                c.classList.remove('temp-highlight');
+                c.classList.add('found-highlight');
+                c.dataset.foundColor = color;
+                c.style.backgroundColor = color;
+            });
+
+            let wordEl = document.querySelector(`.word-item[data-word="${matchedItem.word}"]`);
+            if(wordEl) {
+                wordEl.classList.add('found');
+                wordEl.style.backgroundColor = color;
+            }
+
+            currentColorIndex++;
+            foundWordsCount++;
+            currentPath = [];
+
+            if(foundWordsCount === actualPlaced.length) {
+                clearInterval(timerInterval);
+                setTimeout(() => alert(`🎉 모두 찾았습니다! (소요 시간: ${timerText.innerText})`), 300);
+            }
+        } else if (!isValidStringPrefix) {
+            clearTempSelection();
+        } else {
+            if (currentPath.length > 1) {
+                let validGeometry = true;
+                let c0 = currentPath[0];
+                let c1 = currentPath[1];
+                let dr = parseInt(c1.dataset.r) - parseInt(c0.dataset.r);
+                let dc = parseInt(c1.dataset.c) - parseInt(c0.dataset.c);
+                
+                if (Math.abs(dr) > 1 || Math.abs(dc) > 1) {
+                    validGeometry = false;
+                } else {
+                    for (let i = 2; i < currentPath.length; i++) {
+                        let ci = currentPath[i];
+                        let expectedR = parseInt(c0.dataset.r) + dr * i;
+                        let expectedC = parseInt(c0.dataset.c) + dc * i;
+                        if (parseInt(ci.dataset.r) !== expectedR || parseInt(ci.dataset.c) !== expectedC) {
+                            validGeometry = false;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!validGeometry) {
+                    clearTempSelection();
+                }
+            }
+        }
+    }
+
+    function clearTempSelection() {
+        currentPath.forEach(c => c.classList.remove('temp-highlight'));
+        currentPath = [];
+    }
+
+    function resetGameStates() {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        secondsElapsed = 0;
+        timerText.innerText = '00:00';
+        foundWordsCount = 0;
+        currentColorIndex = 0;
+        clearTempSelection();
+        board.classList.add('blurred');
+        overlay.style.display = 'flex';
+    }
+
+    document.getElementById('startTimerBtn').addEventListener('click', () => {
+        overlay.style.display = 'none';
+        board.classList.remove('blurred');
+        timerInterval = setInterval(() => {
+            secondsElapsed++;
+            let m = String(Math.floor(secondsElapsed / 60)).padStart(2, '0');
+            let s = String(secondsElapsed % 60).padStart(2, '0');
+            timerText.innerText = `${m}:${s}`;
+        }, 1000);
+    });
+
+    document.getElementById('btnHome').addEventListener('click', () => {
+        resetGameStates();
+        p2.style.display = 'none';
+        p1.style.display = 'block';
+    });
+
+    document.getElementById('btnRestart').addEventListener('click', () => {
+        initPuzzle();
+    });
+
+    document.getElementById('btnSave').addEventListener('click', () => {
+        const boardToCapture = document.getElementById('page2'); 
+        const bottomActions = document.querySelector('.bottom-actions');
+        bottomActions.style.display = 'none';
+
+        html2canvas(boardToCapture, { backgroundColor: '#FDF6E3', scale: 2 }).then(canvas => {
+            const link = document.createElement('a');
+            const title = document.getElementById('puzzleTitle').innerText;
+            link.download = `${title}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+            bottomActions.style.display = 'flex';
+        });
+    });
+
+    // ==========================================
+    // 학생용 QR 코드 팝업 및 링크 복사 기능
+    // ==========================================
+    const qrModal = document.getElementById('qrModal');
+    const qrcodeDisplay = document.getElementById('qrcodeDisplay');
+    const shareLinkInput = document.getElementById('shareLinkInput');
+
+    document.getElementById('btnShare').addEventListener('click', () => {
+        const title = document.getElementById('puzzleTitle').innerText;
+        const wordsString = targetWords.join(',');
+        const baseUrl = window.location.origin + window.location.pathname;
+        const shareUrl = `${baseUrl}?title=${encodeURIComponent(title)}&size=${gridSize}&words=${encodeURIComponent(wordsString)}`;
+        
+        // 입력창에 주소 넣기
+        shareLinkInput.value = shareUrl;
+
+        // 기존 QR 코드가 있다면 삭제
+        qrcodeDisplay.innerHTML = '';
+        
+        // 새 QR 코드 생성
+        new QRCode(qrcodeDisplay, {
+            text: shareUrl,
+            width: 180,
+            height: 180,
+            colorDark : "#4A3A31",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.L
+        });
+
+        // 모달창 띄우기
+        qrModal.style.display = 'flex';
+    });
+
+    // 링크 복사 버튼 동작
+    document.getElementById('btnCopyLink').addEventListener('click', () => {
+        shareLinkInput.select();
+        document.execCommand('copy');
+        
+        const btn = document.getElementById('btnCopyLink');
+        const originalText = btn.innerText;
+        btn.innerText = '✅ 복사 완료!';
+        btn.style.backgroundColor = '#6ab04c';
+        
+        setTimeout(() => {
+            btn.innerText = originalText;
+            btn.style.backgroundColor = 'var(--btn-main)';
+        }, 2000);
+    });
+
+    // 닫기 버튼 동작
+    document.getElementById('btnCloseModal').addEventListener('click', () => {
+        qrModal.style.display = 'none';
+    });
+
+    // 모달 바깥 영역(어두운 배경) 클릭 시 닫기
+    window.addEventListener('click', (e) => {
+        if (e.target === qrModal) {
+            qrModal.style.display = 'none';
+        }
+    });
+</script>
+</body>
+</html>
